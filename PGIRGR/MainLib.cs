@@ -1,6 +1,8 @@
 ﻿using Microsoft.Win32;
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics.Eventing.Reader;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -234,202 +236,211 @@ namespace PGIRGR
 			bitmap.Unlock();
 		}
 
-
-
-
-
-
 		public static List<byte> TCto256(List<byte> data, List<List<List<byte>>> colors, int delta)
 		{
 
 			int width = BitConverter.ToInt16(data.GetRange(8, 2).ToArray(), 0) + 1;
 			int height = BitConverter.ToInt16(data.GetRange(10, 2).ToArray(), 0) + 1;
 			List<byte> result = new List<byte>(data.GetRange(0, 128));
-
-			//сокращение и создание цветовой палитры
-			Dictionary<int, List<byte>> trueColorPalett = new Dictionary<int, List<byte>>();
-
-			for (int i = 0; i < height; i++)
+			Dictionary<int, int> colorsCountsPairs = new Dictionary<int, int>();//цвет в виде инт и число
+			
+			//сортировка цветов
+			for(int i = 0; i<height; i++)
 			{
-				for (int j = 0; j < width; j++)
+				Console.Write(i + " ");
+				for(int j = 0; j<width; j++)
 				{
-					List<byte> tempColor = new List<byte> { colors[i][j][0], colors[i][j][1], colors[i][j][2],0 };
-					int colorIntId = BitConverter.ToInt32(tempColor.ToArray(), 0);
-					if (!trueColorPalett.ContainsKey(colorIntId))
+					List<byte> tempListColor = new List<byte>(colors[i][j]);
+					tempListColor.Add(0);
+					int curCol = BitConverter.ToInt32(tempListColor.ToArray(), 0);
+					if (colorsCountsPairs.ContainsKey(curCol))
 					{
-						trueColorPalett.Add(colorIntId, colors[i][j]);
-					}
-				}
-			}
-			List<List<int>> colorsID = new List<List<int>>();
-			for (int i = 0; i < height; i++)
-			{
-				colorsID.Add(new List<int>());
-				for (int j = 0; j < width; j++)
-				{
-					List<byte> tempColor = new List<byte> { colors[i][j][0], colors[i][j][1], colors[i][j][2], 0 };
-					int colorIntId = BitConverter.ToInt32(tempColor.ToArray(), 0);
-					colorsID[i].Add(colorIntId);
-				}
-			}
-
-			Dictionary<int, int> colorsIDCount = new Dictionary<int, int>();
-			for (int i = 0; i < height; i++)
-			{
-				colorsID.Add(new List<int>());
-				for (int j = 0; j < width; j++)
-				{
-					if (!colorsIDCount.ContainsKey(colorsID[i][j]))
-					{
-						colorsIDCount.Add(colorsID[i][j], 1);
+						colorsCountsPairs[curCol]++;
 					} else
 					{
-						colorsIDCount[colorsID[i][j]]++;
+						colorsCountsPairs.Add(curCol, 1);
 					}
-				}
+			    }
 			}
 
+            Dictionary<int, int> colorPalettSorted = colorsCountsPairs.OrderByDescending(kvp => kvp.Value).ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+
+			int z = 0;
 
 
-			
-
-
-			Dictionary<int, int> colorPalettSorted = colorsIDCount.OrderByDescending(kvp => kvp.Value).Take(500).ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
-
-
-
-
-
-
-			int q = 0;
-
-			Dictionary<int, int> colors256 = new Dictionary<int, int>();
-			foreach (var a in colorPalettSorted)
+            KeyValuePair<int, int> nb = new KeyValuePair<int, int>(0, 0);
+            foreach (var a in colorPalettSorted)
 			{
+				if (a.Value != nb.Value)
+				{
+                    List<byte> tempCol = BitConverter.GetBytes(a.Key).ToList();
+                    Console.WriteLine(z + ") " + tempCol[0] + " " + tempCol[1] + " " + tempCol[2] + " | " + a.Value);
 
-				if (q == 500)
+                }
+				nb = a;
+                z++;
+            }
+			//получение 256 самых популярных цветов с разницей в дельту
+
+			while (true)
+			{
+				bool flag = true;
+				int w = 0;
+				int q = 0;
+				foreach (var a in colorPalettSorted)
 				{
-					break;
-				}
-				bool flag = false;
-				foreach (var b in colorPalettSorted)
-				{
-					if (Math.Pow((trueColorPalett[a.Key][0] - trueColorPalett[b.Key][0]), 2) + Math.Pow((trueColorPalett[a.Key][1] - trueColorPalett[b.Key][1]), 2) + Math.Pow((trueColorPalett[a.Key][2] - trueColorPalett[b.Key][2]), 2) < delta)
+					w = 0;
+					foreach (var b in colorPalettSorted)
 					{
-						flag = true;
-						/*Console.WriteLine(Math.Pow((trueColorPalett[a.Key][0] - trueColorPalett[b.Key][0]), 2) + Math.Pow((trueColorPalett[a.Key][1] - trueColorPalett[b.Key][1]), 2) + Math.Pow((trueColorPalett[a.Key][2] - trueColorPalett[b.Key][2]), 2));*/
-						break; 
-					}
-				}
-				if (flag == false)
-				{
-					colors256.Add(a.Key, a.Value);
-				}
-				
-				q++;
-			}
-
-			Dictionary<int, int> color256PalettSorted = colors256.OrderByDescending(kvp => kvp.Value).ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
-			q = 0;
-			foreach (var a in color256PalettSorted)
-			{
-
-				Console.WriteLine(q + ") " + trueColorPalett[a.Key][0] + " " + trueColorPalett[a.Key][1] + " " + trueColorPalett[a.Key][2] + " | " + a.Value);
-				q++;
-			}
-
-			Console.WriteLine(colors256.Count + " " + color256PalettSorted.Count + " " + colorPalettSorted.Count);
-
-			List<List<byte>> colorsList256 = new List<List<byte>>();
-			q = 0;
-			foreach (var a in trueColorPalett)
-			{
-
-				colorsList256.Add(trueColorPalett[a.Key]);
-				q++;
-				if (q == 256)
-				{
-					break;
-				}
-			}
-
-
-			//приведение всех пикселей к существующим цветам
-			List<byte> colorsPalett256 = new List<byte>(); 
-
-			for(int i = 0;i<height; i++)
-			{
-
-				for(int j = 0; j<height; j++)
-				{
-					//нахождение минимальной дельты
-					int deltaLocal = 10000000;
-					byte deltaIndex = 0;
-					for(int k = 0; k<256; k++)
-					{
-						if(deltaLocal < Math.Pow(colors[i][j][0] - colorsList256[k][0], 2) + Math.Pow(colors[i][j][1] - colorsList256[k][1], 2) + Math.Pow(colors[i][j][2] - colorsList256[k][2], 2))
+						if (w == 0)
 						{
-							deltaLocal = (int)(Math.Pow(colors[i][j][0] - colorsList256[k][0], 2) + Math.Pow(colors[i][j][1] - colorsList256[k][1], 2) + Math.Pow(colors[i][j][2] - colorsList256[k][2], 2));
-							deltaIndex = (byte)k;
+							w++;
+							continue;
 						}
-
-					}
-					colorsPalett256.Add(deltaIndex);
-				}
-			}
-			// colorsPalett256 - переписанные под пиксели, но без шифрования
-			//шифрование RLE
-
-			List<byte> dataRLE = new List<byte>();
-			for(int i = 0; i < colorsPalett256.Count; i++)
-			{
-				if (i < colorsPalett256.Count - 1 && colorsPalett256[i] != colorsPalett256[i + 1] && colorsPalett256[i] < 192)
-				{
-					dataRLE.Add(colorsPalett256[i]);
-				}
-				if(i < colorsPalett256.Count - 1 && colorsPalett256[i] != colorsPalett256[i + 1] && colorsPalett256[i] >= 192)
-				{
-					dataRLE.Add((byte)192);
-					dataRLE.Add(colorsPalett256[i]);
-				}
-				if(i < colorsPalett256.Count - 1 && colorsPalett256[i] == colorsPalett256[i + 1])
-				{
-					int g = 1;
-					while (colorsPalett256[i] == colorsPalett256[i + g])
-					{
-						g++;
-
-						if (i + g == colorsPalett256.Count - 1)
+						List<byte> aList = BitConverter.GetBytes(a.Key).ToList();
+						List<byte> bList = BitConverter.GetBytes(b.Key).ToList();
+						if (Math.Pow(aList[0] - bList[0], 2) + Math.Pow(aList[1] - bList[1], 2) + Math.Pow(aList[2] - bList[2], 2) < delta && !(aList[0] == bList[0] && aList[1] == bList[1] && aList[2] == bList[2]))
+						{
+							colorPalettSorted.Remove(a.Key);
+							Console.WriteLine(aList[0] + " " + aList[1] + " " + aList[2] + " " + a.Value + " | " + bList[0] + " " + bList[1] + " " + bList[2] + " " + b.Value);
+							flag = false;
+							break;
+						}
+						w++;
+						if (w >= q)
 						{
 							break;
 						}
 					}
-					dataRLE.Add((byte)(192 + g));
-					dataRLE.Add(colorsPalett256[i]);
-					i += g;
+
+					q++;
+					if (q == 255 || !flag)
+					{
+						break;
+					}
+
 				}
-				if( i == colorsPalett256.Count - 1)
+
+				if (flag)
 				{
-					dataRLE.Add(colorsPalett256[i]);
+					break;
+				}
+				else
+				{
+					Console.Write(q + " " + w + " | ");
 				}
 			}
 
+            z = 0;
+			List<List<byte>> palett256 = new List<List<byte>>();
+			foreach (var a in colorPalettSorted.Take(256))
+            {
+                List<byte> tempCol = BitConverter.GetBytes(a.Key).ToList();
+                Console.WriteLine(z + ") " + tempCol[0] + " " + tempCol[1] + " " + tempCol[2] + " | " + a.Value);
+                palett256.Add(new List<byte> {tempCol[0], tempCol[1], tempCol[2]});
+				z++;
+            }
+			
+			//приведение всех цветов к ближайшим к 256
+
+			List<List<List<byte>>> colors256 = new List<List<List<byte>>>();
+
+			for (int i = 0; i < height; i++)
+			{
+				colors256.Add(new List<List<byte>>());
+				for (int j = 0; j < width; j++)
+				{
+					List<byte> tempColor = colors[i][j];
+					int minDelta = 9999999;
+					
+					for (int q = 0; q < 256; q++)
+					{
+						int tDelta = (int)(Math.Pow(colors[i][j][0] - palett256[q][0], 2) + Math.Pow(colors[i][j][1] - palett256[q][1], 2) + Math.Pow(colors[i][j][2] - palett256[q][2], 2));
+						if(tDelta< minDelta)
+						{
+							tempColor = palett256[q];
+						}
+
+					}
+					colors256[i].Add(tempColor);
+
+				}
+
+			}
+			List<byte> dataTemp = new List<byte>();
+            for (int i = 0; i < height; i++)
+            {
+                for (int j = 0; j < width; j++)
+                {
+					for(int q = 0; q < 3; q++)
+					{
+						dataTemp.Add(colors256[i][j][q]);
+					}
+                }
+
+            }
+
+			// RLE сжатие
+			List<byte> dataRLE = new List<byte>();
+
+			for(int i = 0; i<dataTemp.Count; i++)
+			{
+				if (dataTemp[i] < 192)
+				{
+					dataRLE.Add(dataTemp[i]);
+				}
+				else
+				{
+
+
+					if (i < dataTemp.Count - 1)
+					{
+						if (dataTemp[i] != dataTemp[i + 1])
+						{
+							dataRLE.Add(192);
+							dataRLE.Add(dataTemp[i]);
+
+						} else
+						{
+							int t = 1;
+							while (dataTemp[i] == dataTemp[i + t + 1])
+							{
+								t++;
+							}
+							dataRLE.Add((byte)(192 + t));
+							dataRLE.Add(dataTemp[i]);
+							i += t+1;
+						}
+
+					}
+					else
+					{
+						if (dataTemp[i] >= 192) //запись одного бита как два, если у него 2 старших бита 1
+						{
+							dataRLE.Add(192);
+							dataRLE.Add(dataTemp[i]);
+						}
+					}
+				}
+			}
+
+
+			//палитра под запись
+			List<byte> palettPCX = new List<byte>();
+			for(int i = 0; i<palett256.Count; i++)
+			{
+				for(int j = 0; j<3; j++)
+				{
+					palettPCX.Add(palett256[i][j]);
+				}
+			}
+
+			//запись под формат файла PCX
 			result.AddRange(dataRLE);
 			result.Add(12);
-			foreach(var y in colorsList256)
-			{
-				result.AddRange(y);
-			}
+			result.AddRange(palettPCX);
 
-
-
-			Console.WriteLine(dataRLE.Count + " | " + colorsPalett256.Count + " | " + colorsList256.Count);
-
-
-			//запись под формат 256 цветов
-
-
-			return result;
+            return result;
 		}
 
 	}

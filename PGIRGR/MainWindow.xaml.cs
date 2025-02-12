@@ -39,7 +39,7 @@ namespace PGIRGR
 			List<byte> data = MainLib.GetBytesFromPCX(fileOpenPath);
 			List<List<List<byte>>> colorsTC = MainLib.printPCXTC(data, inputImage);
 
-			List<byte> data256 = MainLib.TCto256(data, colorsTC, 250000);
+			List<byte> data256 = MainLib.TCto256(data, colorsTC, 5);
 			MainLib.printPCX256(data, outputImage);
 
 
