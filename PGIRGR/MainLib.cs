@@ -169,6 +169,7 @@ namespace PGIRGR
 					}
 				}
 			}
+			Console.WriteLine(dataDecoded.Count);
 			List<List<byte>> pixelsMap = new List<List<byte>>();
 			for (int i = 0; i < height; i++)
 			{
@@ -243,7 +244,11 @@ namespace PGIRGR
 			int height = BitConverter.ToInt16(data.GetRange(10, 2).ToArray(), 0) + 1;
 			List<byte> result = new List<byte>(data.GetRange(0, 128));
 			Dictionary<int, int> colorsCountsPairs = new Dictionary<int, int>();//цвет в виде инт и число
-			
+/*			for(int i = 0; i < result.Count; i++)
+			{
+				Console.WriteLine( i + ") " + result[i]);
+			}*/
+			result[65] = 1;
 			//сортировка цветов
 			for(int i = 0; i<height; i++)
 			{
@@ -299,10 +304,10 @@ namespace PGIRGR
 						}
 						List<byte> aList = BitConverter.GetBytes(a.Key).ToList();
 						List<byte> bList = BitConverter.GetBytes(b.Key).ToList();
-						if (Math.Pow(aList[0] - bList[0], 2) + Math.Pow(aList[1] - bList[1], 2) + Math.Pow(aList[2] - bList[2], 2) < delta && !(aList[0] == bList[0] && aList[1] == bList[1] && aList[2] == bList[2]))
+						if ((aList[0] - bList[0]) * (aList[0] - bList[0]) + (aList[1] - bList[1])* (aList[1] - bList[1]) + (aList[2] - bList[2]) * (aList[2] - bList[2]) < delta && !(aList[0] == bList[0] && aList[1] == bList[1] && aList[2] == bList[2]))
 						{
 							colorPalettSorted.Remove(a.Key);
-							Console.WriteLine(aList[0] + " " + aList[1] + " " + aList[2] + " " + a.Value + " | " + bList[0] + " " + bList[1] + " " + bList[2] + " " + b.Value);
+							//Console.WriteLine(aList[0] + " " + aList[1] + " " + aList[2] + " " + a.Value + " | " + bList[0] + " " + bList[1] + " " + bList[2] + " " + b.Value);
 							flag = false;
 							break;
 						}
@@ -327,7 +332,7 @@ namespace PGIRGR
 				}
 				else
 				{
-					Console.Write(q + " " + w + " | ");
+					/*Console.Write(q + " " + w + " | ");*/
 				}
 			}
 
@@ -343,26 +348,28 @@ namespace PGIRGR
 			
 			//приведение всех цветов к ближайшим к 256
 
-			List<List<List<byte>>> colors256 = new List<List<List<byte>>>();
+			List<List<byte>> colors256 = new List<List<byte>>();
 
 			for (int i = 0; i < height; i++)
 			{
-				colors256.Add(new List<List<byte>>());
+				colors256.Add(new List<byte>());
 				for (int j = 0; j < width; j++)
 				{
 					List<byte> tempColor = colors[i][j];
-					int minDelta = 9999999;
-					
+					int minDelta = int.MaxValue;
+					int tempIndex = 0;
 					for (int q = 0; q < 256; q++)
 					{
 						int tDelta = (int)(Math.Pow(colors[i][j][0] - palett256[q][0], 2) + Math.Pow(colors[i][j][1] - palett256[q][1], 2) + Math.Pow(colors[i][j][2] - palett256[q][2], 2));
 						if(tDelta< minDelta)
 						{
 							tempColor = palett256[q];
+							tempIndex = q;
+							minDelta = tDelta;
 						}
 
 					}
-					colors256[i].Add(tempColor);
+					colors256[i].Add((byte)tempIndex);
 
 				}
 
@@ -372,58 +379,64 @@ namespace PGIRGR
             {
                 for (int j = 0; j < width; j++)
                 {
-					for(int q = 0; q < 3; q++)
-					{
-						dataTemp.Add(colors256[i][j][q]);
-					}
+
+					dataTemp.Add(colors256[i][j]);
+					
                 }
 
             }
 
 			// RLE сжатие
 			List<byte> dataRLE = new List<byte>();
-
-			for(int i = 0; i<dataTemp.Count; i++)
+			Console.WriteLine(dataTemp.Count);
+			for (int i = 0; i < dataTemp.Count; i++)
 			{
-				if (dataTemp[i] < 192)
-				{
-					dataRLE.Add(dataTemp[i]);
-				}
-				else
+
+				if (i < dataTemp.Count - 1)
 				{
 
-
-					if (i < dataTemp.Count - 1)
+					if (dataTemp[i] >= 193)
 					{
 						if (dataTemp[i] != dataTemp[i + 1])
 						{
-							dataRLE.Add(192);
-							dataRLE.Add(dataTemp[i]);
-
-						} else
+							dataRLE.Add(193);
+							dataRLE.Add((byte)dataTemp[i]);
+						}
+						else
 						{
-							int t = 1;
-							while (dataTemp[i] == dataTemp[i + t + 1])
+							int t = 0;
+							while (i + t + 1 < dataTemp.Count && dataTemp[i] == dataTemp[i + t] && t<63)
 							{
 								t++;
+
 							}
 							dataRLE.Add((byte)(192 + t));
-							dataRLE.Add(dataTemp[i]);
-							i += t+1;
+							dataRLE.Add(((byte)dataTemp[i]));
+							i += t-1;
 						}
 
 					}
 					else
 					{
-						if (dataTemp[i] >= 192) //запись одного бита как два, если у него 2 старших бита 1
-						{
-							dataRLE.Add(192);
-							dataRLE.Add(dataTemp[i]);
-						}
+						dataRLE.Add((byte)dataTemp[i]);
+					}
+
+				}
+				else
+				{
+					if (dataTemp[i] >= 193)
+					{
+						dataRLE.Add(193);
+						dataRLE.Add((byte)dataTemp[i]);
+					}
+					else
+					{
+						dataRLE.Add((byte)dataTemp[i]);
 					}
 				}
-			}
 
+			}
+				
 
 			//палитра под запись
 			List<byte> palettPCX = new List<byte>();
@@ -434,7 +447,7 @@ namespace PGIRGR
 					palettPCX.Add(palett256[i][j]);
 				}
 			}
-
+			Console.WriteLine(dataRLE.Count);
 			//запись под формат файла PCX
 			result.AddRange(dataRLE);
 			result.Add(12);
