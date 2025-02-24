@@ -237,22 +237,46 @@ namespace PGIRGR
 			bitmap.Unlock();
 		}
 
-		public static List<byte> TCto256(List<byte> data, List<List<List<byte>>> colors, int delta)
+		public static List<byte> TCto256(List<byte> data, List<List<List<byte>>> colorsFull, int delta)
 		{
+
+
 
 			int width = BitConverter.ToInt16(data.GetRange(8, 2).ToArray(), 0) + 1;
 			int height = BitConverter.ToInt16(data.GetRange(10, 2).ToArray(), 0) + 1;
 			List<byte> result = new List<byte>(data.GetRange(0, 128));
 			Dictionary<int, int> colorsCountsPairs = new Dictionary<int, int>();//цвет в виде инт и число
-/*			for(int i = 0; i < result.Count; i++)
-			{
-				Console.WriteLine( i + ") " + result[i]);
-			}*/
+			/*			for(int i = 0; i < result.Count; i++)
+						{
+							Console.WriteLine( i + ") " + result[i]);
+						}*/
+			//result[4] = 8;
 			result[65] = 1;
-			//сортировка цветов
-			for(int i = 0; i<height; i++)
+			//result[68] = 1;
+			//что вообще с заголовком делать...
+
+
+			//урезание цветов в 2**12 раз
+			Console.WriteLine("начало урезания цветов");
+			List<List<List<byte>>> colors = new List<List<List<byte>>>(colorsFull);
+
+			for (int i = 0; i < height; i++)
 			{
-				Console.Write(i + " ");
+				for(int j = 0; j<width; j++)
+				{
+					for(int q = 0; q<3; q++)
+					{
+						colors[i][j][q] &= 0xF0;
+					}
+				}
+			}
+
+
+			Console.WriteLine("сортировка цветов");
+
+			//сортировка цветов
+			for (int i = 0; i<height; i++)
+			{
 				for(int j = 0; j<width; j++)
 				{
 					List<byte> tempListColor = new List<byte>(colors[i][j]);
@@ -279,7 +303,7 @@ namespace PGIRGR
 				if (a.Value != nb.Value)
 				{
                     List<byte> tempCol = BitConverter.GetBytes(a.Key).ToList();
-                    Console.WriteLine(z + ") " + tempCol[0] + " " + tempCol[1] + " " + tempCol[2] + " | " + a.Value);
+                    //Console.WriteLine(z + ") " + tempCol[0] + " " + tempCol[1] + " " + tempCol[2] + " | " + a.Value);
 
                 }
 				nb = a;
@@ -287,8 +311,12 @@ namespace PGIRGR
             }
 			//получение 256 самых популярных цветов с разницей в дельту
 
+			Console.WriteLine("получение разных цветов");
+			int TEMP = 0;
 			while (true)
 			{
+				Console.WriteLine(TEMP);
+				TEMP++;
 				bool flag = true;
 				int w = 0;
 				int q = 0;
@@ -336,12 +364,13 @@ namespace PGIRGR
 				}
 			}
 
-            z = 0;
+			Console.WriteLine("замена всех цветов");
+			z = 0;
 			List<List<byte>> palett256 = new List<List<byte>>();
 			foreach (var a in colorPalettSorted.Take(256))
             {
                 List<byte> tempCol = BitConverter.GetBytes(a.Key).ToList();
-                Console.WriteLine(z + ") " + tempCol[0] + " " + tempCol[1] + " " + tempCol[2] + " | " + a.Value);
+               // Console.WriteLine(z + ") " + tempCol[0] + " " + tempCol[1] + " " + tempCol[2] + " | " + a.Value);
                 palett256.Add(new List<byte> {tempCol[0], tempCol[1], tempCol[2]});
 				z++;
             }
@@ -360,7 +389,7 @@ namespace PGIRGR
 					int tempIndex = 0;
 					for (int q = 0; q < 256; q++)
 					{
-						int tDelta = (int)(Math.Pow(colors[i][j][0] - palett256[q][0], 2) + Math.Pow(colors[i][j][1] - palett256[q][1], 2) + Math.Pow(colors[i][j][2] - palett256[q][2], 2));
+						int tDelta = (int)((colors[i][j][0] - palett256[q][0]) * (colors[i][j][0] - palett256[q][0]) + (colors[i][j][1] - palett256[q][1]) * (colors[i][j][1] - palett256[q][1]) + (colors[i][j][2] - palett256[q][2])* (colors[i][j][2] - palett256[q][2]));
 						if(tDelta< minDelta)
 						{
 							tempColor = palett256[q];
@@ -387,8 +416,9 @@ namespace PGIRGR
             }
 
 			// RLE сжатие
+
+			Console.WriteLine("RLE сжатие");
 			List<byte> dataRLE = new List<byte>();
-			Console.WriteLine(dataTemp.Count);
 			for (int i = 0; i < dataTemp.Count; i++)
 			{
 
@@ -447,13 +477,12 @@ namespace PGIRGR
 					palettPCX.Add(palett256[i][j]);
 				}
 			}
-			Console.WriteLine(dataRLE.Count);
 			//запись под формат файла PCX
 			result.AddRange(dataRLE);
 			result.Add(12);
 			result.AddRange(palettPCX);
 
-            return result;
+			return result;
 		}
 
 	}
